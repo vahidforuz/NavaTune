@@ -18,11 +18,10 @@ class FlutterPitchDetectionService implements PitchService {
 
   bool _isStarted = false;
 
-  // Stabilization (important)
   String? _candidateNote;
   int _candidateCount = 0;
-  static const int requiredStableFrames = 5;
 
+  static const int requiredStableFrames = 5;
   static const int _sampleRate = 44100;
   static const double _minPianoFrequency = 27.5;
   static const double _maxPianoFrequency = 4186.01;
@@ -41,22 +40,12 @@ class FlutterPitchDetectionService implements PitchService {
       throw Exception('Pitch detection only supported on Android for now.');
     }
 
-    // Request microphone permission
     final permission = await Permission.microphone.request();
+
     if (!permission.isGranted) {
       throw Exception('Microphone permission not granted');
     }
 
-    // Set parameters BEFORE starting
-    await _detector.setParameters(
-      sampleRate: _sampleRate,
-      bufferSize: 8192,
-      minPrecision: 0.75,
-      toleranceCents: 8,
-      a4Reference: 440.0,
-    );
-
-    // Listen to pitch stream
     _subscription = _detector.onPitchDetected.listen(
       (data) {
         final frequency =
@@ -74,7 +63,6 @@ class FlutterPitchDetectionService implements PitchService {
         final accuracy =
             rawAccuracy > 1 ? rawAccuracy / 100.0 : rawAccuracy;
 
-        // Basic filtering
         if (frequency < _minPianoFrequency ||
             frequency > _maxPianoFrequency) {
           return;
@@ -86,13 +74,9 @@ class FlutterPitchDetectionService implements PitchService {
 
         final pitchNote = NoteUtils.fromFrequency(frequency);
 
-        // Use ONE consistent note value
         final detectedNote =
-            noteOctave?.isNotEmpty == true
-                ? noteOctave!
-                : pitchNote.note;
+            noteOctave?.isNotEmpty == true ? noteOctave! : pitchNote.note;
 
-        // Stabilization logic
         if (_candidateNote == detectedNote) {
           _candidateCount++;
         } else {
@@ -118,10 +102,16 @@ class FlutterPitchDetectionService implements PitchService {
       },
     );
 
-    // Start detection
     await _detector.startDetection();
-
     _isStarted = true;
+
+    await _detector.setParameters(
+      sampleRate: _sampleRate,
+      bufferSize: 8192,
+      minPrecision: 0.75,
+      toleranceCents: 8,
+      a4Reference: 440.0,
+    );
   }
 
   @override
@@ -134,7 +124,6 @@ class FlutterPitchDetectionService implements PitchService {
       _isStarted = false;
     }
 
-    // Reset stabilization
     _candidateNote = null;
     _candidateCount = 0;
   }

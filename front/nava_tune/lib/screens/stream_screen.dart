@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/detected_note.dart';
+import '../models/pitch_result.dart';
 import '../services/flutter_pitch_detection_service.dart';
 import '../services/note_recording_service.dart';
 
@@ -19,29 +20,43 @@ class _StreamScreenState extends State<StreamScreen> {
 
   final NoteRecordingService _noteRecordingService = NoteRecordingService();
 
-  StreamSubscription? _pitchSubscription;
+  StreamSubscription<PitchResult>? _pitchSubscription;
 
   String _statusText = 'Stream not started';
   bool _isRecording = false;
   List<DetectedNote> _recordedNotes = [];
 
   Future<void> _startRecording() async {
+    if (_isRecording) return;
+
     try {
       await _pitchService.start();
 
       _noteRecordingService.clear();
+      await _pitchSubscription?.cancel();
 
-      _pitchSubscription = _pitchService.pitchStream.listen((pitchResult) {
-        _noteRecordingService.processPitch(pitchResult);
+      _pitchSubscription = _pitchService.pitchStream.listen(
+        (pitchResult) {
+          _noteRecordingService.checkSilence();
+          _noteRecordingService.processPitch(pitchResult);
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        setState(() {
-          _recordedNotes = _noteRecordingService.notes;
-          _statusText =
-              'Detecting: ${pitchResult.note} - ${pitchResult.frequency.toStringAsFixed(2)} Hz';
-        });
-      });
+          setState(() {
+            _recordedNotes = _noteRecordingService.notes;
+            _statusText =
+                'Detecting: ${pitchResult.note} - ${pitchResult.frequency.toStringAsFixed(2)} Hz';
+          });
+        },
+        onError: (error) {
+          if (!mounted) return;
+
+          setState(() {
+            _statusText = 'Error: $error';
+            _isRecording = false;
+          });
+        },
+      );
 
       if (!mounted) return;
 
@@ -59,6 +74,8 @@ class _StreamScreenState extends State<StreamScreen> {
   }
 
   Future<void> _stopRecording() async {
+    if (!_isRecording) return;
+
     await _pitchSubscription?.cancel();
     _pitchSubscription = null;
 
@@ -77,6 +94,7 @@ class _StreamScreenState extends State<StreamScreen> {
   @override
   void dispose() {
     unawaited(_pitchSubscription?.cancel());
+    _noteRecordingService.stopRecording();
     unawaited(_pitchService.dispose());
     super.dispose();
   }
@@ -84,9 +102,7 @@ class _StreamScreenState extends State<StreamScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Melody Recording'),
-      ),
+      appBar: AppBar(title: const Text('Melody Recording')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -115,19 +131,14 @@ class _StreamScreenState extends State<StreamScreen> {
 
             const Text(
               'Recorded Notes',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 16),
 
             Expanded(
               child: _recordedNotes.isEmpty
-                  ? const Center(
-                      child: Text('No notes recorded yet'),
-                    )
+                  ? const Center(child: Text('No notes recorded yet'))
                   : ListView.builder(
                       itemCount: _recordedNotes.length,
                       itemBuilder: (context, index) {
@@ -137,7 +148,7 @@ class _StreamScreenState extends State<StreamScreen> {
                           leading: Text('${index + 1}'),
                           title: Text(note.note),
                           subtitle: Text(
-                            '${note.frequency.toStringAsFixed(2)} Hz — '
+                            '${note.frequency.toStringAsFixed(2)} Hz - '
                             '${note.durationSeconds.toStringAsFixed(2)} s',
                           ),
                         );

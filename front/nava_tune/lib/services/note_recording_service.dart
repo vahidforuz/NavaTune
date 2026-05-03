@@ -36,8 +36,7 @@ class NoteRecordingService {
     if (_currentNote == null || _lastPitchTime == null) return;
 
     final now = DateTime.now();
-    final silenceDuration =
-        now.difference(_lastPitchTime!).inMilliseconds;
+    final silenceDuration = now.difference(_lastPitchTime!).inMilliseconds;
 
     if (silenceDuration >= silenceTimeoutMs) {
       _endCurrentNote(_lastPitchTime!);
@@ -45,6 +44,8 @@ class NoteRecordingService {
   }
 
   void stopRecording() {
+    checkSilence();
+
     if (_currentNote != null) {
       _endCurrentNote(DateTime.now());
     }
@@ -68,8 +69,7 @@ class NoteRecordingService {
   void _endCurrentNote(DateTime endTime) {
     if (_currentNote == null || _noteStartTime == null) return;
 
-    final duration =
-        endTime.difference(_noteStartTime!).inMilliseconds;
+    final duration = endTime.difference(_noteStartTime!).inMilliseconds;
 
     if (duration >= minNoteDurationMs) {
       _notes.add(
