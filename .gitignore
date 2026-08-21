@@ -1,0 +1,30 @@
+
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.pytest_cache/
+.mypy_cache/
+
+.DS_Store
+Thumbs.db
+
+*.log
+
+# Generated/exported files
+*.pdf
+*.musicxml
+*.mxl
+
+# Temporary/test audio if you don't want it in Git
+audio/temp/
+tmp/
+
+# IDE/editor files
+.vscode/
+.idea/
+.venv/
+.venv/
+.venv_windows/

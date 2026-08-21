@@ -1,0 +1,10 @@
+customtkinter
+librosa
+sounddevice
+soundfile
+music21
+reportlab
+pymupdf
+pillow
+numpy
+scipy
