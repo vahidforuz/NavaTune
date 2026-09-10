@@ -247,7 +247,12 @@ class MusicXMLExporter:
         for event in events:
             if event.kind == "note":
                 if self.is_chord(event.note):
-                    xml += self.build_chord_xml(event.note)
+                    xml += self.build_chord_xml(
+                        event.note,
+                        event.duration_units,
+                        tie_start=event.tie_start,
+                        tie_stop=event.tie_stop,
+                    )
                 else:
                     xml += self.build_note_xml(
                         event.note,
@@ -439,8 +444,22 @@ class MusicXMLExporter:
     def is_chord(self, event):
         return hasattr(event, "names")
 
-    def build_chord_xml(self, chord):
+    def build_chord_xml(
+        self,
+        chord,
+        duration_units=None,
+        tie_start=False,
+        tie_stop=False,
+    ):
         xml = ""
+
+        if duration_units is None:
+            duration_units = self.duration_to_units(chord.duration)
+
+        note_type = self.duration_to_type(duration_units)
+        dot_xml = self.build_dot_xml(duration_units)
+        tie_xml = self.build_tie_xml(tie_start, tie_stop)
+        notations_xml = self.build_notations_xml(tie_start, tie_stop)
 
         for index, note_name in enumerate(chord.names):
             note_name = self.clean_note_name(note_name)
@@ -448,9 +467,6 @@ class MusicXMLExporter:
             step = note_name[0]
             octave = self.get_octave(note_name)
             alter = self.get_alter(note_name)
-
-            duration_units = self.duration_to_units(chord.duration)
-            note_type = self.duration_to_type(duration_units)
 
             staff = 1 if octave >= 4 else 2
 
@@ -465,15 +481,18 @@ class MusicXMLExporter:
             xml += f"""
           <note>
             {chord_xml}
-            <pitch>
-              <step>{step}</step>
-              {alter_xml}
-              <octave>{octave}</octave>
-            </pitch>
-            <duration>{duration_units}</duration>
-            <type>{note_type}</type>
-            <staff>{staff}</staff>
-          </note>
+              <pitch>
+                <step>{step}</step>
+                {alter_xml}
+                <octave>{octave}</octave>
+              </pitch>
+              <duration>{duration_units}</duration>
+              {tie_xml}
+              <type>{note_type}</type>
+              {dot_xml}
+              <staff>{staff}</staff>
+              {notations_xml}
+            </note>
     """
 
         return xml

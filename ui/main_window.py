@@ -17,6 +17,7 @@ from detection.nmf_detector import NMFDetector
 from detection.pitch_detector import PitchDetector
 
 from export.musicxml_exporter import MusicXMLExporter
+from export.musicxml_importer import MusicXMLImporter
 from export.pdf_from_musicxml import PDFMusicXMLConverter
 from notation.rhythm_analyzer import RhythmAnalyzer
 from notation.rhythm_quantizer import RhythmQuantizer
@@ -67,6 +68,7 @@ class MainWindow(ctk.CTk):
             self,
             on_export_pdf=self.export_pdf,
             on_export_musicxml=self.export_musicxml,
+            on_open_musicxml=self.open_musicxml,
         )
         self.export_panel.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
 
@@ -81,6 +83,7 @@ class MainWindow(ctk.CTk):
         self.pitch_detector = self.librosa_detector
 
         self.musicxml_exporter = MusicXMLExporter()
+        self.musicxml_importer = MusicXMLImporter()
         self.pdf_converter = PDFMusicXMLConverter()
 
         self.recorder = AudioRecorder()
@@ -129,6 +132,39 @@ class MainWindow(ctk.CTk):
             )
             self.statusbar.set_status("MusicXML exported")
             messagebox.showinfo("Success", "MusicXML exported successfully.")
+
+    def open_musicxml(self):
+        input_path = filedialog.askopenfilename(
+            title="Open MusicXML",
+            filetypes=[
+                ("MusicXML files", "*.musicxml *.xml"),
+                ("All files", "*.*"),
+            ],
+        )
+
+        if not input_path:
+            return
+
+        try:
+            bpm, _ = self.get_notation_settings()
+            imported_notes = self.musicxml_importer.import_file(input_path, bpm=bpm)
+        except Exception as error:
+            messagebox.showerror(
+                "Open MusicXML failed",
+                f"Could not open MusicXML file:\n{error}",
+            )
+            return
+
+        self.raw_notes = imported_notes
+        self.timed_notes = imported_notes
+        self.current_notes = imported_notes
+
+        self.workspace.set_notes(self.current_notes)
+        self.workspace.set_editable_notes(self.current_notes)
+        self.workspace.set("Edit Notes")
+        self.refresh_sheet_preview()
+
+        self.statusbar.set_status("MusicXML opened")
 
     def export_pdf(self):
         if not self.current_notes:
