@@ -1,4 +1,5 @@
 from notation.rhythm_quantizer import RhythmQuantizer
+from notation.tonality import AUTOMATIC_TONALITY, key_signature_fifths
 
 
 class MusicXMLExporter:
@@ -11,16 +12,21 @@ class MusicXMLExporter:
         bpm: int = 60,
         time_signature: str = "4/4",
         use_tempo_quantization: bool = True,
+        tonality: str = AUTOMATIC_TONALITY,
     ):
         if use_tempo_quantization:
             measures_xml = self.build_piano_measures(
                 RhythmQuantizer(
                     bpm=bpm,
                     time_signature=time_signature,
-                ).quantize(notes)
+                ).quantize(notes),
+                tonality=tonality,
             )
         else:
-            measures_xml = self.build_legacy_piano_measures(notes)
+            measures_xml = self.build_legacy_piano_measures(
+                notes,
+                tonality=tonality,
+            )
 
         content = f"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE score-partwise PUBLIC
@@ -50,9 +56,9 @@ class MusicXMLExporter:
         with open(output_path, "w", encoding="utf-8") as file:
             file.write(content)
 
-    def build_legacy_piano_measures(self, notes):
+    def build_legacy_piano_measures(self, notes, tonality=AUTOMATIC_TONALITY):
         if not notes:
-            return self.empty_measure(1)
+            return self.empty_measure(1, tonality=tonality)
 
         events = []
         previous_end = 0.0
@@ -88,6 +94,7 @@ class MusicXMLExporter:
                     measure_number,
                     current_measure,
                     include_attributes=(measure_number == 1),
+                    tonality=tonality,
                 )
                 measure_number += 1
                 current_measure = []
@@ -101,11 +108,18 @@ class MusicXMLExporter:
                 measure_number,
                 current_measure,
                 include_attributes=(measure_number == 1),
+                tonality=tonality,
             )
 
         return xml
 
-    def build_legacy_measure(self, measure_number, events, include_attributes=False):
+    def build_legacy_measure(
+        self,
+        measure_number,
+        events,
+        include_attributes=False,
+        tonality=AUTOMATIC_TONALITY,
+    ):
         attributes = ""
         system_break = ""
 
@@ -115,11 +129,12 @@ class MusicXMLExporter:
     """
 
         if include_attributes:
+            fifths = key_signature_fifths(tonality)
             attributes = f"""
         <attributes>
             <divisions>{self.DIVISIONS}</divisions>
             <key>
-            <fifths>0</fifths>
+            <fifths>{fifths}</fifths>
             </key>
             <time>
             <beats>4</beats>
@@ -157,9 +172,9 @@ class MusicXMLExporter:
         </measure>
     """
 
-    def build_piano_measures(self, quantized_score):
+    def build_piano_measures(self, quantized_score, tonality=AUTOMATIC_TONALITY):
         if not quantized_score.measures:
-            return self.empty_measure(1)
+            return self.empty_measure(1, tonality=tonality)
 
         xml = ""
 
@@ -169,6 +184,7 @@ class MusicXMLExporter:
                 measure.events,
                 quantized_score,
                 include_attributes=(measure.number == 1),
+                tonality=tonality,
             )
 
         return xml
@@ -179,6 +195,7 @@ class MusicXMLExporter:
         events,
         quantized_score,
         include_attributes=False,
+        tonality=AUTOMATIC_TONALITY,
     ):
         attributes = ""
         system_break = ""
@@ -191,11 +208,12 @@ class MusicXMLExporter:
 
         if include_attributes:
             time_signature = quantized_score.time_signature
+            fifths = key_signature_fifths(tonality)
             attributes = f"""
         <attributes>
             <divisions>{quantized_score.divisions}</divisions>
             <key>
-            <fifths>0</fifths>
+            <fifths>{fifths}</fifths>
             </key>
             <time>
             <beats>{time_signature.beats}</beats>
@@ -319,13 +337,14 @@ class MusicXMLExporter:
       </note>
 """
 
-    def empty_measure(self, measure_number):
+    def empty_measure(self, measure_number, tonality=AUTOMATIC_TONALITY):
+        fifths = key_signature_fifths(tonality)
         return f"""
     <measure number="{measure_number}">
       <attributes>
         <divisions>{self.DIVISIONS}</divisions>
         <key>
-          <fifths>0</fifths>
+          <fifths>{fifths}</fifths>
         </key>
         <time>
           <beats>4</beats>

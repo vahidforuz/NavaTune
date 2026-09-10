@@ -1,5 +1,7 @@
 import customtkinter as ctk
 
+from notation.tonality import tonality_label
+
 
 class Toolbar(ctk.CTkFrame):
     COMPACT_WIDTH = 1350
@@ -12,7 +14,8 @@ class Toolbar(ctk.CTkFrame):
         on_record,
         on_stop,
         on_settings,
-        on_detector_changed
+        on_detector_changed,
+        on_choose_tonality,
     ):
         super().__init__(parent)
 
@@ -29,6 +32,9 @@ class Toolbar(ctk.CTkFrame):
 
         self.detector_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.detector_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+
+        self.tonality_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.tonality_frame.grid(row=1, column=1, sticky="e", padx=5, pady=5)
 
         self.upload_btn = ctk.CTkButton(
             self.actions_frame,
@@ -104,6 +110,20 @@ class Toolbar(ctk.CTkFrame):
         self.detector_menu.set("Librosa")
         self.detector_menu.grid(row=0, column=0, padx=5, pady=5)
 
+        self.tonality_label = ctk.CTkLabel(
+            self.tonality_frame,
+            text="Tonality: Automatic / Unknown",
+        )
+        self.tonality_label.grid(row=0, column=0, padx=5, pady=5)
+
+        self.tonality_btn = ctk.CTkButton(
+            self.tonality_frame,
+            text="Choose Tonality",
+            command=on_choose_tonality,
+            width=150,
+        )
+        self.tonality_btn.grid(row=0, column=1, padx=5, pady=5)
+
         self.bind("<Configure>", self.update_responsive_layout)
         self.after(0, lambda: self.update_responsive_layout())
 
@@ -119,6 +139,10 @@ class Toolbar(ctk.CTkFrame):
 
     def use_tempo_quantization(self):
         return self.timing_mode_menu.get() == "Tempo/Signature"
+
+    def set_tonality(self, tonality):
+        self.tonality_label.configure(text=f"Tonality: {tonality_label(tonality)}")
+        self.tonality_btn.configure(text="Change Tonality")
 
     def update_responsive_layout(self, event=None):
         width = event.width if event else self.winfo_width()
@@ -138,11 +162,13 @@ class Toolbar(ctk.CTkFrame):
         self.actions_frame.grid_forget()
         self.timing_frame.grid_forget()
         self.detector_frame.grid_forget()
+        self.tonality_frame.grid_forget()
 
         if layout == "wide":
             self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
             self.timing_frame.grid(row=0, column=1, sticky="e", padx=5, pady=5)
             self.detector_frame.grid(row=0, column=2, sticky="e", padx=5, pady=5)
+            self.tonality_frame.grid(row=1, column=2, sticky="e", padx=5, pady=5)
             self.grid_columnconfigure(0, weight=0)
             self.grid_columnconfigure(1, weight=1)
             self.grid_columnconfigure(2, weight=0)
@@ -150,6 +176,7 @@ class Toolbar(ctk.CTkFrame):
             self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
             self.timing_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)
             self.detector_frame.grid(row=1, column=1, sticky="e", padx=5, pady=5)
+            self.tonality_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)
             self.grid_columnconfigure(0, weight=1)
             self.grid_columnconfigure(1, weight=0)
             self.grid_columnconfigure(2, weight=0)
@@ -157,6 +184,7 @@ class Toolbar(ctk.CTkFrame):
             self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
             self.timing_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)
             self.detector_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)
+            self.tonality_frame.grid(row=3, column=0, sticky="w", padx=5, pady=5)
             self.grid_columnconfigure(0, weight=1)
             self.grid_columnconfigure(1, weight=0)
             self.grid_columnconfigure(2, weight=0)
