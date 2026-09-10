@@ -59,7 +59,12 @@ class NotesEditor(ctk.CTkFrame):
         )
         self.add_rest_btn.grid(row=0, column=2, padx=5, pady=5)
 
-        self.table = ctk.CTkScrollableFrame(self)
+        self.table = ctk.CTkScrollableFrame(
+            self,
+            orientation="vertical",
+            scrollbar_button_color="#3b8ed0",
+            scrollbar_button_hover_color="#1f6aa5",
+        )
         self.table.pack(fill="both", expand=True, padx=10, pady=10)
 
         self.draw_table()
