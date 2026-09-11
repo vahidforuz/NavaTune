@@ -12,6 +12,7 @@ class TabWorkspace(ctk.CTkTabview):
         parent,
         on_notes_changed=None,
         get_quarter_note_seconds=None,
+        on_edit_score_details=None,
     ):
         super().__init__(parent)
 
@@ -35,7 +36,10 @@ class TabWorkspace(ctk.CTkTabview):
         )
         self.notes_editor.pack(fill="both", expand=True)
 
-        self.sheet_panel = PDFPreview(self.tab("Sheet Music"))
+        self.sheet_panel = PDFPreview(
+            self.tab("Sheet Music"),
+            on_edit_score_details=on_edit_score_details,
+        )
         self.sheet_panel.pack(fill="both", expand=True)
 
     def load_audio(self, file_path: str):
