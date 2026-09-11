@@ -1,9 +1,20 @@
+from html import escape
+
+from models.score_metadata import ScoreMetadata
 from notation.rhythm_quantizer import RhythmQuantizer
 from notation.tonality import AUTOMATIC_TONALITY, key_signature_fifths
 
 
 class MusicXMLExporter:
     DIVISIONS = 8  # quarter note = 8 units
+    PAGE_WIDTH = 1194
+    PAGE_HEIGHT = 1545
+    PAGE_CENTER_X = PAGE_WIDTH // 2
+    PAGE_RIGHT_X = PAGE_WIDTH - 70
+    TITLE_Y = PAGE_HEIGHT - 80
+    SUBTITLE_Y = PAGE_HEIGHT - 130
+    COMPOSER_Y = PAGE_HEIGHT - 210
+    COPYRIGHT_Y = 45
 
     def export(
         self,
@@ -13,7 +24,10 @@ class MusicXMLExporter:
         time_signature: str = "4/4",
         use_tempo_quantization: bool = True,
         tonality: str = AUTOMATIC_TONALITY,
+        score_metadata: ScoreMetadata | None = None,
     ):
+        score_metadata = (score_metadata or ScoreMetadata()).normalized()
+
         if use_tempo_quantization:
             measures_xml = self.build_piano_measures(
                 RhythmQuantizer(
@@ -34,6 +48,8 @@ class MusicXMLExporter:
     "http://www.musicxml.org/dtds/partwise.dtd">
 
 <score-partwise version="3.1">
+  {self.build_score_metadata_xml(score_metadata)}
+
   <part-list>
 
     <score-part id="P1">
@@ -55,6 +71,101 @@ class MusicXMLExporter:
 """
         with open(output_path, "w", encoding="utf-8") as file:
             file.write(content)
+
+    def build_score_metadata_xml(self, score_metadata: ScoreMetadata):
+        title = self.xml_text(score_metadata.title)
+        subtitle = self.xml_text(score_metadata.subtitle)
+        composer = self.xml_text(score_metadata.composer)
+        arranger = self.xml_text(score_metadata.arranger)
+        copyright_text = self.xml_text(score_metadata.copyright)
+
+        creators = ""
+
+        if composer:
+            creators += f"""
+    <creator type="composer">{composer}</creator>"""
+
+        if arranger:
+            creators += f"""
+    <creator type="arranger">{arranger}</creator>"""
+
+        rights = ""
+
+        if copyright_text:
+            rights = f"""
+    <rights>{copyright_text}</rights>"""
+
+        identification = ""
+
+        if creators or rights:
+            identification = f"""
+  <identification>{creators}{rights}
+  </identification>"""
+
+        subtitle_credit = ""
+
+        if subtitle:
+            subtitle_credit = f"""
+  <credit page="1">
+    <credit-words default-x="{self.PAGE_CENTER_X}" default-y="{self.SUBTITLE_Y}" justify="center" valign="top" font-size="14">&#10;&#10;{subtitle}</credit-words>
+  </credit>"""
+
+        author_lines = []
+
+        if composer:
+            author_lines.append(f"Composer: {composer}")
+
+        if arranger:
+            author_lines.append(f"Arranger: {arranger}")
+
+        author_credit = ""
+
+        if author_lines:
+            author_credit = f"""
+  <credit page="1">
+    <credit-words default-x="{self.PAGE_RIGHT_X}" default-y="{self.COMPOSER_Y}" justify="right" valign="top" font-size="11">{"&#10;".join(author_lines)}</credit-words>
+  </credit>"""
+
+        copyright_credit = ""
+
+        if copyright_text:
+            copyright_credit = f"""
+  <credit page="1">
+    <credit-words default-x="{self.PAGE_CENTER_X}" default-y="{self.COPYRIGHT_Y}" justify="center" valign="bottom" font-size="8">{copyright_text}</credit-words>
+  </credit>"""
+
+        return f"""<movement-title>{title}</movement-title>{identification}
+  <defaults>
+    <scaling>
+      <millimeters>7</millimeters>
+      <tenths>40</tenths>
+    </scaling>
+    <page-layout>
+      <page-height>{self.PAGE_HEIGHT}</page-height>
+      <page-width>{self.PAGE_WIDTH}</page-width>
+      <page-margins type="both">
+        <left-margin>70</left-margin>
+        <right-margin>70</right-margin>
+        <top-margin>70</top-margin>
+        <bottom-margin>70</bottom-margin>
+      </page-margins>
+    </page-layout>
+  </defaults>
+  <credit page="1">
+    <credit-words default-x="{self.PAGE_CENTER_X}" default-y="{self.TITLE_Y}" justify="center" valign="top" font-size="26" font-weight="bold">{title}</credit-words>
+  </credit>{subtitle_credit}{author_credit}{copyright_credit}"""
+
+    def xml_text(self, value):
+        return escape(str(value or ""), quote=True)
+
+    def build_first_system_layout_xml(self):
+        return """
+        <print>
+          <system-layout>
+            <top-system-distance>240</top-system-distance>
+          </system-layout>
+        </print>
+    """
 
     def build_legacy_piano_measures(self, notes, tonality=AUTOMATIC_TONALITY):
         if not notes:
@@ -127,6 +238,8 @@ class MusicXMLExporter:
             system_break = """
         <print new-system="yes"/>
     """
+        elif include_attributes:
+            system_break = self.build_first_system_layout_xml()
 
         if include_attributes:
             fifths = key_signature_fifths(tonality)
@@ -205,6 +318,8 @@ class MusicXMLExporter:
             system_break = """
         <print new-system="yes"/>
     """
+        elif include_attributes:
+            system_break = self.build_first_system_layout_xml()
 
         if include_attributes:
             time_signature = quantized_score.time_signature

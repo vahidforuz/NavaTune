@@ -2,12 +2,13 @@ import tempfile
 import os
 
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 from audio.recorder import AudioRecorder
 from ui.toolbar import Toolbar
 from ui.tab_workspace import TabWorkspace
 from ui.export_panel import ExportPanel
+from ui.score_details_dialog import ScoreDetailsDialog
 from ui.statusbar import StatusBar
 from ui.tonality_dialog import TonalityDialog
 
@@ -19,6 +20,7 @@ from detection.pitch_detector import PitchDetector
 from export.musicxml_exporter import MusicXMLExporter
 from export.musicxml_importer import MusicXMLImporter
 from export.pdf_from_musicxml import PDFMusicXMLConverter
+from models.score_metadata import ScoreMetadata
 from notation.rhythm_analyzer import RhythmAnalyzer
 from notation.rhythm_quantizer import RhythmQuantizer
 from notation.tonality import (
@@ -35,7 +37,8 @@ class MainWindow(ctk.CTk):
 
         self.title("Music Notation")
         self.geometry("900x600")
-        self.minsize(700, 520)
+        self.minsize(500, 360)
+        self.resizable(True, True)
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
@@ -61,6 +64,7 @@ class MainWindow(ctk.CTk):
             self,
             on_notes_changed=self.on_notes_changed,
             get_quarter_note_seconds=self.get_quarter_note_seconds,
+            on_edit_score_details=self.open_score_details,
         )
         self.workspace.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
 
@@ -74,6 +78,9 @@ class MainWindow(ctk.CTk):
 
         self.statusbar = StatusBar(self)
         self.statusbar.grid(row=3, column=0, sticky="ew", padx=10, pady=10)
+
+        self.resize_grip = ttk.Sizegrip(self)
+        self.resize_grip.grid(row=3, column=0, sticky="se", padx=(0, 2), pady=(0, 2))
 
         self.librosa_detector = PitchDetector()
         self.basic_pitch_detector = BasicPitchDetector()
@@ -89,6 +96,7 @@ class MainWindow(ctk.CTk):
         self.recorder = AudioRecorder()
 
         self.selected_tonality = AUTOMATIC_TONALITY
+        self.score_metadata = ScoreMetadata()
         self.raw_notes = []
         self.timed_notes = []
         self.current_notes = []
@@ -129,6 +137,7 @@ class MainWindow(ctk.CTk):
                 time_signature=time_signature,
                 use_tempo_quantization=self.use_tempo_quantization(),
                 tonality=self.selected_tonality,
+                score_metadata=self.score_metadata,
             )
             self.statusbar.set_status("MusicXML exported")
             messagebox.showinfo("Success", "MusicXML exported successfully.")
@@ -191,6 +200,7 @@ class MainWindow(ctk.CTk):
                 time_signature=time_signature,
                 use_tempo_quantization=self.use_tempo_quantization(),
                 tonality=self.selected_tonality,
+                score_metadata=self.score_metadata,
             )
             self.pdf_converter.convert(musicxml_path, pdf_path)
 
@@ -216,6 +226,18 @@ class MainWindow(ctk.CTk):
 
     def open_settings(self):
         self.statusbar.set_status("Settings opened")
+
+    def open_score_details(self):
+        ScoreDetailsDialog(
+            self,
+            score_metadata=self.score_metadata,
+            on_save=self.update_score_metadata,
+        )
+
+    def update_score_metadata(self, score_metadata):
+        self.score_metadata = score_metadata.normalized()
+        self.refresh_sheet_preview()
+        self.statusbar.set_status("Score details updated")
 
     def open_tonality_dialog(self):
         TonalityDialog(
@@ -254,6 +276,7 @@ class MainWindow(ctk.CTk):
             time_signature=time_signature,
             use_tempo_quantization=self.use_tempo_quantization(),
             tonality=self.selected_tonality,
+            score_metadata=self.score_metadata,
         )
         self.pdf_converter.convert(musicxml_path, pdf_path)
 
