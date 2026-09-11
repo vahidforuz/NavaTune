@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from models.detected_chord import DetectedChord
 from models.detected_note import DetectedNote
 
 
@@ -43,10 +44,17 @@ class RhythmQuantizer:
     DIVISIONS = 8
     MIN_DURATION_UNITS = 2
     SUPPORTED_DURATION_UNITS = (1, 2, 3, 4, 6, 8, 12, 16, 24, 32)
+    ONSET_TOLERANCE_SECONDS = 0.04
 
-    def __init__(self, bpm: int = 60, time_signature: str = "4/4"):
+    def __init__(
+        self,
+        bpm: int = 60,
+        time_signature: str = "4/4",
+        onset_tolerance: float = ONSET_TOLERANCE_SECONDS,
+    ):
         self.bpm = max(1, int(bpm))
         self.time_signature = TimeSignature.parse(time_signature)
+        self.onset_tolerance = max(0.0, float(onset_tolerance))
 
     @property
     def quarter_note_seconds(self) -> float:
@@ -188,8 +196,21 @@ class RhythmQuantizer:
     def build_timeline_events(self, notes: list[DetectedNote]) -> list[NotationEvent]:
         events = []
         previous_end_units = 0
+        sorted_notes = [
+            item
+            for _, item in sorted(
+                enumerate(notes),
+                key=lambda indexed_item: (
+                    indexed_item[1].start_units,
+                    self.onset_time(indexed_item[1]),
+                    indexed_item[0],
+                ),
+            )
+        ]
+        index = 0
 
-        for note in sorted(notes, key=lambda item: item.start_units):
+        while index < len(sorted_notes):
+            note = sorted_notes[index]
             start_units = note.start_units
             duration_units = max(self.MIN_DURATION_UNITS, note.duration_units)
 
@@ -199,12 +220,79 @@ class RhythmQuantizer:
 
             if note.is_rest():
                 events.extend(self.split_duration("rest", duration_units))
-            else:
-                events.extend(self.split_duration("note", duration_units, note=note))
+                previous_end_units = max(
+                    previous_end_units,
+                    start_units + duration_units,
+                )
+                index += 1
+                continue
 
-            previous_end_units = max(previous_end_units, start_units + duration_units)
+            group = [note]
+            group_onset = self.onset_time(note)
+            index += 1
+
+            while index < len(sorted_notes):
+                candidate = sorted_notes[index]
+
+                if candidate.is_rest():
+                    break
+
+                if (
+                    self.onsets_match(group_onset, self.onset_time(candidate))
+                    and candidate.duration_units == group[0].duration_units
+                ):
+                    group.append(candidate)
+                    index += 1
+                    continue
+
+                break
+
+            event_note = self.build_note_or_chord(group)
+            event_duration_units = max(
+                self.MIN_DURATION_UNITS,
+                event_note.duration_units
+                if hasattr(event_note, "duration_units")
+                else self.seconds_to_units(event_note.duration),
+            )
+            events.extend(
+                self.split_duration(
+                    "note",
+                    event_duration_units,
+                    note=event_note,
+                )
+            )
+
+            previous_end_units = max(
+                previous_end_units,
+                start_units + event_duration_units,
+            )
 
         return events
+
+    def onset_time(self, note: DetectedNote) -> float:
+        return (
+            note.raw_start_time
+            if note.raw_start_time is not None
+            else note.start_time
+        )
+
+    def onsets_match(self, first_onset: float, second_onset: float) -> bool:
+        return abs(second_onset - first_onset) <= self.onset_tolerance
+
+    def build_note_or_chord(self, group: list[DetectedNote]):
+        if len(group) == 1:
+            return group[0]
+
+        duration_units = group[0].duration_units
+
+        chord = DetectedChord(
+            names=[note.name for note in group],
+            start_time=group[0].start_time,
+            duration=group[0].duration,
+            start_units=group[0].start_units,
+            duration_units=duration_units,
+        )
+        return chord
 
     def split_duration(
         self,
