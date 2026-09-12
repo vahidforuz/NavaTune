@@ -12,7 +12,9 @@ class TabWorkspace(ctk.CTkTabview):
         parent,
         on_notes_changed=None,
         get_quarter_note_seconds=None,
+        get_time_signature=None,
         on_edit_score_details=None,
+        on_refresh_preview=None,
     ):
         super().__init__(parent)
 
@@ -33,12 +35,15 @@ class TabWorkspace(ctk.CTkTabview):
             self.tab("Edit Notes"),
             on_notes_changed=self.on_notes_changed,
             get_quarter_note_seconds=get_quarter_note_seconds,
+            get_time_signature=get_time_signature,
         )
         self.notes_editor.pack(fill="both", expand=True)
 
         self.sheet_panel = PDFPreview(
             self.tab("Sheet Music"),
             on_edit_score_details=on_edit_score_details,
+            on_refresh_preview=on_refresh_preview,
+            on_edit_notes=self.open_notes_editor,
         )
         self.sheet_panel.pack(fill="both", expand=True)
 
@@ -53,9 +58,28 @@ class TabWorkspace(ctk.CTkTabview):
     def set_editable_notes(self, notes):
         self.notes_editor.set_notes(notes)
 
+    def open_notes_editor(self):
+        self.set("Edit Notes")
+
     def set_sheet_pdf(self, pdf_path: str):
         self.set("Sheet Music")
         self.sheet_panel.load_pdf(pdf_path)
+
+    def set_pdf_review_context(
+        self,
+        notes=None,
+        bpm=None,
+        time_signature=None,
+        tonality=None,
+        score_metadata=None,
+    ):
+        self.sheet_panel.set_review_context(
+            notes=notes,
+            bpm=bpm,
+            time_signature=time_signature,
+            tonality=tonality,
+            score_metadata=score_metadata,
+        )
 
     def on_notes_changed(self, notes):
         self.notes_panel.set_notes(notes)

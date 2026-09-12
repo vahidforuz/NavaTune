@@ -64,7 +64,9 @@ class MainWindow(ctk.CTk):
             self,
             on_notes_changed=self.on_notes_changed,
             get_quarter_note_seconds=self.get_quarter_note_seconds,
+            get_time_signature=self.get_time_signature,
             on_edit_score_details=self.open_score_details,
+            on_refresh_preview=self.refresh_sheet_preview,
         )
         self.workspace.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
 
@@ -280,6 +282,13 @@ class MainWindow(ctk.CTk):
         )
         self.pdf_converter.convert(musicxml_path, pdf_path)
 
+        self.workspace.set_pdf_review_context(
+            notes=self.current_notes,
+            bpm=bpm,
+            time_signature=time_signature,
+            tonality=self.selected_tonality,
+            score_metadata=self.score_metadata,
+        )
         self.workspace.set_sheet_pdf(pdf_path)
 
     def on_notes_changed(self, notes):
@@ -314,6 +323,10 @@ class MainWindow(ctk.CTk):
     def get_quarter_note_seconds(self):
         bpm, _ = self.get_notation_settings()
         return 60.0 / bpm
+
+    def get_time_signature(self):
+        _, time_signature = self.get_notation_settings()
+        return time_signature
 
     def quantize_notes(self, notes):
         bpm, time_signature = self.get_notation_settings()
