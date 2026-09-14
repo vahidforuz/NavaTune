@@ -4,16 +4,12 @@ from notation.tonality import tonality_label
 
 
 class Toolbar(ctk.CTkFrame):
-    COMPACT_WIDTH = 1350
-    NARROW_WIDTH = 760
+    COMPACT_WIDTH = 1120
+    NARROW_WIDTH = 720
 
     def __init__(
         self,
         parent,
-        on_upload,
-        on_record,
-        on_stop,
-        on_settings,
         on_detector_changed,
         on_choose_tonality,
     ):
@@ -21,108 +17,77 @@ class Toolbar(ctk.CTkFrame):
 
         self.current_layout = None
 
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
-
-        self.actions_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+        self.grid_columnconfigure(2, weight=0)
 
         self.timing_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.timing_frame.grid(row=0, column=1, sticky="e", padx=5, pady=5)
+        self.timing_frame.grid(row=0, column=0, sticky="w", padx=4, pady=2)
 
         self.detector_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.detector_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)
+        self.detector_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
 
         self.tonality_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.tonality_frame.grid(row=1, column=1, sticky="e", padx=5, pady=5)
-
-        self.upload_btn = ctk.CTkButton(
-            self.actions_frame,
-            text="Upload",
-            command=on_upload,
-        )
-        self.upload_btn.grid(row=0, column=0, padx=5, pady=5)
-
-        self.record_btn = ctk.CTkButton(
-            self.actions_frame,
-            text="Record",
-            command=on_record,
-        )
-        self.record_btn.grid(row=0, column=1, padx=5, pady=5)
-
-        self.stop_btn = ctk.CTkButton(
-            self.actions_frame,
-            text="Stop",
-            command=on_stop,
-        )
-        self.stop_btn.grid(row=0, column=2, padx=5, pady=5)
-
-        self.settings_btn = ctk.CTkButton(
-            self.actions_frame,
-            text="Settings",
-            command=on_settings,
-        )
-        self.settings_btn.grid(row=0, column=3, padx=5, pady=5)
+        self.tonality_frame.grid(row=0, column=2, sticky="e", padx=4, pady=2)
 
         self.tempo_label = ctk.CTkLabel(self.timing_frame, text="Tempo (BPM)")
-        self.tempo_label.grid(row=0, column=0, padx=(5, 5), pady=5)
+        self.tempo_label.grid(row=0, column=0, padx=(2, 4), pady=2)
 
         self.tempo_menu = ctk.CTkComboBox(
             self.timing_frame,
             values=["40", "60", "80", "100", "120", "140"],
-            width=80,
+            width=72,
         )
         self.tempo_menu.set("60")
-        self.tempo_menu.grid(row=0, column=1, padx=5, pady=5)
+        self.tempo_menu.grid(row=0, column=1, padx=3, pady=2)
 
         self.time_signature_label = ctk.CTkLabel(
             self.timing_frame,
             text="Time Signature",
         )
-        self.time_signature_label.grid(row=0, column=2, padx=(15, 5), pady=5)
+        self.time_signature_label.grid(row=0, column=2, padx=(10, 4), pady=2)
 
         self.time_signature_menu = ctk.CTkOptionMenu(
             self.timing_frame,
             values=["2/4", "3/4", "4/4", "6/8", "9/8", "12/8"],
-            width=80,
+            width=72,
         )
         self.time_signature_menu.set("4/4")
-        self.time_signature_menu.grid(row=0, column=3, padx=5, pady=5)
+        self.time_signature_menu.grid(row=0, column=3, padx=3, pady=2)
 
         self.timing_mode_menu = ctk.CTkOptionMenu(
             self.timing_frame,
             values=["Tempo/Signature", "Legacy Timing"],
-            width=140,
+            width=130,
         )
         self.timing_mode_menu.set("Tempo/Signature")
-        self.timing_mode_menu.grid(row=0, column=4, padx=(15, 5), pady=5)
+        self.timing_mode_menu.grid(row=0, column=4, padx=(10, 3), pady=2)
 
         self.detector_menu = ctk.CTkOptionMenu(
             self.detector_frame,
             values=[
-                "Librosa",
                 "Spotify Basic Pitch",
-                "NMF (Non-negative Matrix Factorization)",
+                "Magenta Onsets and Frames (solo piano)",
             ],
             command=on_detector_changed,
-            width=240,
+            width=290,
         )
-        self.detector_menu.set("Librosa")
-        self.detector_menu.grid(row=0, column=0, padx=5, pady=5)
+        self.detector_menu.set("Spotify Basic Pitch")
+        self.detector_menu.grid(row=0, column=0, sticky="ew", padx=3, pady=2)
 
         self.tonality_label = ctk.CTkLabel(
             self.tonality_frame,
             text="Tonality: Automatic / Unknown",
         )
-        self.tonality_label.grid(row=0, column=0, padx=5, pady=5)
+        self.tonality_label.grid(row=0, column=0, padx=3, pady=2)
 
         self.tonality_btn = ctk.CTkButton(
             self.tonality_frame,
             text="Choose Tonality",
             command=on_choose_tonality,
-            width=150,
+            width=135,
         )
-        self.tonality_btn.grid(row=0, column=1, padx=5, pady=5)
+        self.tonality_btn.grid(row=0, column=1, padx=(4, 2), pady=2)
 
         self.bind("<Configure>", self.update_responsive_layout)
         self.after(0, lambda: self.update_responsive_layout())
@@ -159,32 +124,28 @@ class Toolbar(ctk.CTkFrame):
 
         self.current_layout = layout
 
-        self.actions_frame.grid_forget()
         self.timing_frame.grid_forget()
         self.detector_frame.grid_forget()
         self.tonality_frame.grid_forget()
 
         if layout == "wide":
-            self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
-            self.timing_frame.grid(row=0, column=1, sticky="e", padx=5, pady=5)
-            self.detector_frame.grid(row=0, column=2, sticky="e", padx=5, pady=5)
-            self.tonality_frame.grid(row=1, column=2, sticky="e", padx=5, pady=5)
+            self.timing_frame.grid(row=0, column=0, sticky="w", padx=4, pady=2)
+            self.detector_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
+            self.tonality_frame.grid(row=0, column=2, sticky="e", padx=4, pady=2)
             self.grid_columnconfigure(0, weight=0)
             self.grid_columnconfigure(1, weight=1)
             self.grid_columnconfigure(2, weight=0)
         elif layout == "compact":
-            self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
-            self.timing_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)
-            self.detector_frame.grid(row=1, column=1, sticky="e", padx=5, pady=5)
-            self.tonality_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)
+            self.timing_frame.grid(row=0, column=0, sticky="w", padx=4, pady=2)
+            self.detector_frame.grid(row=0, column=1, sticky="e", padx=4, pady=2)
+            self.tonality_frame.grid(row=1, column=0, columnspan=2, sticky="w", padx=4, pady=2)
             self.grid_columnconfigure(0, weight=1)
             self.grid_columnconfigure(1, weight=0)
             self.grid_columnconfigure(2, weight=0)
         else:
-            self.actions_frame.grid(row=0, column=0, sticky="w", padx=5, pady=5)
-            self.timing_frame.grid(row=1, column=0, sticky="w", padx=5, pady=5)
-            self.detector_frame.grid(row=2, column=0, sticky="w", padx=5, pady=5)
-            self.tonality_frame.grid(row=3, column=0, sticky="w", padx=5, pady=5)
+            self.timing_frame.grid(row=0, column=0, sticky="w", padx=4, pady=2)
+            self.detector_frame.grid(row=1, column=0, sticky="w", padx=4, pady=2)
+            self.tonality_frame.grid(row=2, column=0, sticky="w", padx=4, pady=2)
             self.grid_columnconfigure(0, weight=1)
             self.grid_columnconfigure(1, weight=0)
             self.grid_columnconfigure(2, weight=0)

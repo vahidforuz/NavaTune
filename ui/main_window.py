@@ -1,5 +1,6 @@
 import tempfile
 import os
+import tkinter as tk
 
 import customtkinter as ctk
 from tkinter import filedialog, messagebox, ttk
@@ -7,15 +8,13 @@ from tkinter import filedialog, messagebox, ttk
 from audio.recorder import AudioRecorder
 from ui.toolbar import Toolbar
 from ui.tab_workspace import TabWorkspace
-from ui.export_panel import ExportPanel
 from ui.score_details_dialog import ScoreDetailsDialog
 from ui.statusbar import StatusBar
 from ui.tonality_dialog import TonalityDialog
 
 from detection.basic_pitch_detector import BasicPitchDetector
-from detection.nmf_detector import NMFDetector
-
-from detection.pitch_detector import PitchDetector
+from detection.detector_errors import DetectorBackendError
+from detection.magenta_onsets_frames_detector import MagentaOnsetsFramesDetector
 
 from export.musicxml_exporter import MusicXMLExporter
 from export.musicxml_importer import MusicXMLImporter
@@ -31,17 +30,21 @@ from notation.tonality import (
 )
 
 
+MAGENTA_ONSETS_FRAMES_DETECTOR = "Magenta Onsets and Frames (solo piano)"
+
+
 class MainWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("Music Notation")
         self.geometry("900x600")
-        self.minsize(500, 360)
+        self.minsize(760, 360)
         self.resizable(True, True)
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
+        self.create_menu_bar()
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0)
@@ -51,14 +54,10 @@ class MainWindow(ctk.CTk):
 
         self.toolbar = Toolbar(
             self,
-            on_upload=self.upload_audio,
-            on_record=self.start_recording,
-            on_stop=self.stop_recording,
-            on_settings=self.open_settings,
             on_detector_changed=self.change_detector,
             on_choose_tonality=self.open_tonality_dialog,
         )
-        self.toolbar.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+        self.toolbar.grid(row=0, column=0, sticky="ew", padx=8, pady=(4, 2))
 
         self.workspace = TabWorkspace(
             self,
@@ -68,28 +67,19 @@ class MainWindow(ctk.CTk):
             on_edit_score_details=self.open_score_details,
             on_refresh_preview=self.refresh_sheet_preview,
         )
-        self.workspace.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
-
-        self.export_panel = ExportPanel(
-            self,
-            on_export_pdf=self.export_pdf,
-            on_export_musicxml=self.export_musicxml,
-            on_open_musicxml=self.open_musicxml,
-        )
-        self.export_panel.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+        self.workspace.grid(row=1, column=0, sticky="nsew", padx=8, pady=(2, 4))
 
         self.statusbar = StatusBar(self)
-        self.statusbar.grid(row=3, column=0, sticky="ew", padx=10, pady=10)
+        self.statusbar.grid(row=2, column=0, sticky="ew", padx=8, pady=(2, 6))
 
         self.resize_grip = ttk.Sizegrip(self)
-        self.resize_grip.grid(row=3, column=0, sticky="se", padx=(0, 2), pady=(0, 2))
+        self.resize_grip.grid(row=2, column=0, sticky="se", padx=(0, 2), pady=(0, 2))
 
-        self.librosa_detector = PitchDetector()
         self.basic_pitch_detector = BasicPitchDetector()
-        self.nmf_detector = NMFDetector()
+        self.magenta_detector = MagentaOnsetsFramesDetector()
 
-        self.detector_name = "Librosa"
-        self.pitch_detector = self.librosa_detector
+        self.detector_name = "Spotify Basic Pitch"
+        self.pitch_detector = self.basic_pitch_detector
 
         self.musicxml_exporter = MusicXMLExporter()
         self.musicxml_importer = MusicXMLImporter()
@@ -102,6 +92,58 @@ class MainWindow(ctk.CTk):
         self.raw_notes = []
         self.timed_notes = []
         self.current_notes = []
+        self.current_musicxml_path = None
+        self.preview_refresh_after_id = None
+
+    def create_menu_bar(self):
+        menu_bar = tk.Menu(self)
+
+        file_menu = tk.Menu(menu_bar, tearoff=0)
+        file_menu.add_command(label="Upload", command=self.upload_audio)
+        file_menu.add_command(label="Open MusicXML", command=self.open_musicxml)
+        file_menu.add_command(label="Save", command=self.save_musicxml)
+        file_menu.add_separator()
+
+        export_menu = tk.Menu(file_menu, tearoff=0)
+        export_menu.add_command(label="PDF", command=self.export_pdf)
+        export_menu.add_command(label="MusicXML", command=self.export_musicxml)
+        file_menu.add_cascade(label="Export", menu=export_menu)
+
+        recording_menu = tk.Menu(file_menu, tearoff=0)
+        recording_menu.add_command(label="Record", command=self.start_recording)
+        recording_menu.add_command(label="Stop", command=self.stop_recording)
+        file_menu.add_cascade(label="Recording", menu=recording_menu)
+        file_menu.add_separator()
+        file_menu.add_command(label="Exit", command=self.destroy)
+        menu_bar.add_cascade(label="File", menu=file_menu)
+
+        edit_menu = tk.Menu(menu_bar, tearoff=0)
+        edit_menu.add_command(label="Score Details", command=self.open_score_details)
+        edit_menu.add_command(label="Edit Notes", command=lambda: self.workspace.set("Edit Notes"))
+        edit_menu.add_command(label="Choose Tonality", command=self.open_tonality_dialog)
+        edit_menu.add_command(label="Refresh Sheet Preview", command=self.refresh_sheet_preview)
+        menu_bar.add_cascade(label="Edit", menu=edit_menu)
+
+        setting_menu = tk.Menu(menu_bar, tearoff=0)
+        setting_menu.add_command(label="Settings", command=self.open_settings)
+        menu_bar.add_cascade(label="Setting", menu=setting_menu)
+
+        advanced_menu = tk.Menu(menu_bar, tearoff=0)
+        advanced_menu.add_command(
+            label="Waveform",
+            command=lambda: self.workspace.show_waveform(),
+        )
+        advanced_menu.add_command(
+            label="Detected Notes",
+            command=lambda: self.workspace.show_detected_notes(),
+        )
+        menu_bar.add_cascade(label="Advanced", menu=advanced_menu)
+
+        about_menu = tk.Menu(menu_bar, tearoff=0)
+        about_menu.add_command(label="About NavaTune", command=self.show_about)
+        menu_bar.add_cascade(label="About", menu=about_menu)
+
+        self.config(menu=menu_bar)
 
     def upload_audio(self):
         file_path = filedialog.askopenfilename(
@@ -131,18 +173,44 @@ class MainWindow(ctk.CTk):
         )
 
         if output_path:
-            bpm, time_signature = self.get_notation_settings()
-            self.musicxml_exporter.export(
-                self.current_notes,
-                output_path,
-                bpm=bpm,
-                time_signature=time_signature,
-                use_tempo_quantization=self.use_tempo_quantization(),
-                tonality=self.selected_tonality,
-                score_metadata=self.score_metadata,
-            )
+            self.write_musicxml(output_path)
+            self.current_musicxml_path = output_path
             self.statusbar.set_status("MusicXML exported")
             messagebox.showinfo("Success", "MusicXML exported successfully.")
+
+    def save_musicxml(self):
+        if not self.current_notes:
+            messagebox.showwarning(
+                "No notes",
+                "Please upload an audio file or open a MusicXML file first.",
+            )
+            return
+
+        if not self.current_musicxml_path:
+            output_path = filedialog.asksaveasfilename(
+                title="Save MusicXML",
+                defaultextension=".musicxml",
+                filetypes=[("MusicXML files", "*.musicxml")],
+            )
+            if not output_path:
+                return
+            self.current_musicxml_path = output_path
+
+        self.write_musicxml(self.current_musicxml_path)
+        self.statusbar.set_status("Saved")
+        messagebox.showinfo("Saved", "MusicXML saved successfully.")
+
+    def write_musicxml(self, output_path):
+        bpm, time_signature = self.get_notation_settings()
+        self.musicxml_exporter.export(
+            self.current_notes,
+            output_path,
+            bpm=bpm,
+            time_signature=time_signature,
+            use_tempo_quantization=self.use_tempo_quantization(),
+            tonality=self.selected_tonality,
+            score_metadata=self.score_metadata,
+        )
 
     def open_musicxml(self):
         input_path = filedialog.askopenfilename(
@@ -169,6 +237,7 @@ class MainWindow(ctk.CTk):
         self.raw_notes = imported_notes
         self.timed_notes = imported_notes
         self.current_notes = imported_notes
+        self.current_musicxml_path = input_path
 
         self.workspace.set_notes(self.current_notes)
         self.workspace.set_editable_notes(self.current_notes)
@@ -229,6 +298,12 @@ class MainWindow(ctk.CTk):
     def open_settings(self):
         self.statusbar.set_status("Settings opened")
 
+    def show_about(self):
+        messagebox.showinfo(
+            "About NavaTune",
+            "NavaTune\nAudio-to-sheet-music notation editor.",
+        )
+
     def open_score_details(self):
         ScoreDetailsDialog(
             self,
@@ -263,6 +338,8 @@ class MainWindow(ctk.CTk):
         )
 
     def refresh_sheet_preview(self):
+        self.cancel_pending_preview_refresh()
+
         if not self.current_notes:
             return
 
@@ -294,13 +371,43 @@ class MainWindow(ctk.CTk):
     def on_notes_changed(self, notes):
         self.timed_notes = notes
         self.current_notes = notes
-        self.refresh_sheet_preview()
-        self.statusbar.set_status("Notes updated")
+        bpm, time_signature = self.get_notation_settings()
+
+        self.workspace.set_pdf_review_context(
+            notes=self.current_notes,
+            bpm=bpm,
+            time_signature=time_signature,
+            tonality=self.selected_tonality,
+            score_metadata=self.score_metadata,
+        )
+        self.schedule_sheet_preview_refresh()
+        self.statusbar.set_status("Notes updated; preview refresh queued")
+
+    def schedule_sheet_preview_refresh(self, delay_ms=700):
+        self.cancel_pending_preview_refresh()
+        self.preview_refresh_after_id = self.after(delay_ms, self.refresh_sheet_preview)
+
+    def cancel_pending_preview_refresh(self):
+        if not self.preview_refresh_after_id:
+            return
+
+        try:
+            self.after_cancel(self.preview_refresh_after_id)
+        except ValueError:
+            pass
+
+        self.preview_refresh_after_id = None
 
     def process_audio_file(self, file_path):
         self.workspace.load_audio(file_path)
 
-        self.raw_notes = self.pitch_detector.detect_notes_with_time(file_path)
+        try:
+            self.raw_notes = self.pitch_detector.detect_notes_with_time(file_path)
+        except DetectorBackendError as error:
+            self.statusbar.set_status(str(error))
+            messagebox.showinfo("Detector backend error", str(error))
+            return
+
         self.timed_notes = self.prepare_notes_for_timing_mode(
             self.raw_notes,
             file_path=file_path,
@@ -361,13 +468,12 @@ class MainWindow(ctk.CTk):
         self.detector_name = detector_name
 
         if detector_name == "Librosa":
-            self.pitch_detector = self.librosa_detector
-            self.statusbar.set_status("Detector: Librosa")
+            detector_name = "Spotify Basic Pitch"
 
-        elif detector_name == "Spotify Basic Pitch":
+        if detector_name == "Spotify Basic Pitch":
             self.pitch_detector = self.basic_pitch_detector
             self.statusbar.set_status("Detector: Spotify Basic Pitch")
 
-        elif detector_name == "NMF (Non-negative Matrix Factorization)":
-            self.pitch_detector = self.nmf_detector
-            self.statusbar.set_status("Detector: NMF")
+        elif detector_name == MAGENTA_ONSETS_FRAMES_DETECTOR:
+            self.pitch_detector = self.magenta_detector
+            self.statusbar.set_status("Detector: Magenta Onsets and Frames")

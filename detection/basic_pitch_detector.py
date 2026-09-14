@@ -1,19 +1,42 @@
 import os
+import shutil
 import tempfile
 import subprocess
-import pretty_midi
 
+from detection.detector_errors import DetectorBackendError
 from models.detected_note import DetectedNote
 
 
 class BasicPitchDetector:
     def detect_notes_with_time(self, file_path: str) -> list[DetectedNote]:
+        if not shutil.which("basic-pitch"):
+            raise DetectorBackendError(
+                "Spotify Basic Pitch is selected, but the basic-pitch command "
+                "was not found. Install Basic Pitch, then try again."
+            )
+
         output_dir = tempfile.mkdtemp(prefix="navatune_basic_pitch_")
 
-        subprocess.run(
-            ["basic-pitch", output_dir, file_path],
-            check=True
-        )
+        try:
+            subprocess.run(
+                ["basic-pitch", output_dir, file_path],
+                check=True,
+            )
+        except subprocess.CalledProcessError as error:
+            raise DetectorBackendError(
+                "Spotify Basic Pitch failed while transcribing this audio."
+            ) from error
+
+        return self.detect_notes_from_midi_output(output_dir)
+
+    def detect_notes_from_midi_output(self, output_dir: str) -> list[DetectedNote]:
+        try:
+            import pretty_midi
+        except ImportError as error:
+            raise DetectorBackendError(
+                "MIDI parsing needs pretty_midi. Install project requirements, "
+                "then try again."
+            ) from error
 
         midi_files = [
             f for f in os.listdir(output_dir)

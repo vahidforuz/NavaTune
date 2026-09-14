@@ -21,6 +21,7 @@ Thumbs.db
 # Temporary/test audio if you don't want it in Git
 audio/temp/
 tmp/
+assets/magenta_models/
 
 # IDE/editor files
 .vscode/

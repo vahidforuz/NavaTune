@@ -8,3 +8,5 @@ pymupdf
 pillow
 numpy
 scipy
+pretty_midi
+basic-pitch

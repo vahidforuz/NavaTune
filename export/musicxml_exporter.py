@@ -415,14 +415,7 @@ class MusicXMLExporter:
         tie_xml = self.build_tie_xml(tie_start, tie_stop)
         notations_xml = self.build_notations_xml(tie_start, tie_stop)
 
-        staff_choice = getattr(note, "staff", "auto")
-
-        if staff_choice == "treble":
-            staff = 1
-        elif staff_choice == "bass":
-            staff = 2
-        else:
-            staff = 1 if octave >= 4 else 2
+        staff = self.staff_number(note, octave)
 
         alter_xml = ""
         if alter != 0:
@@ -583,7 +576,7 @@ class MusicXMLExporter:
             octave = self.get_octave(note_name)
             alter = self.get_alter(note_name)
 
-            staff = 1 if octave >= 4 else 2
+            staff = self.staff_number(chord, octave)
 
             alter_xml = ""
             if alter != 0:
@@ -611,3 +604,13 @@ class MusicXMLExporter:
     """
 
         return xml
+
+    def staff_number(self, note_or_chord, octave):
+        staff_choice = getattr(note_or_chord, "staff", "auto")
+
+        if staff_choice == "treble":
+            return 1
+        if staff_choice == "bass":
+            return 2
+
+        return 1 if octave >= 4 else 2

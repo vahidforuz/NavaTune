@@ -65,3 +65,22 @@ def test_explicit_rest_is_not_exported_as_pitch():
         ("rest", None, 8),
         ("note", "E4", 8),
     ]
+
+
+def test_simultaneous_notes_on_different_hands_are_not_joined_as_chord():
+    notes = [
+        DetectedNote("C3", 0.0, 1.0, staff="bass"),
+        DetectedNote("E4", 0.0, 1.0, staff="treble"),
+        DetectedNote("G4", 0.0, 1.0, staff="treble"),
+    ]
+
+    score = RhythmQuantizer(bpm=60, time_signature="4/4").quantize(notes)
+    note_events = [
+        event for event in score.measures[0].events
+        if event.kind == "note"
+    ]
+
+    assert note_events[0].note.name == "C3"
+    assert note_events[0].note.staff == "bass"
+    assert note_events[1].note.names == ["E4", "G4"]
+    assert note_events[1].note.staff == "treble"

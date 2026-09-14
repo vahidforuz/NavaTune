@@ -92,12 +92,21 @@ class RhythmQuantizer:
             start_units = self.seconds_to_units(raw_note.start_time)
             duration_units = self.quantize_duration_units(raw_note.duration)
 
-            quantized_note = DetectedNote(
-                name=raw_note.name,
-                start_time=self.units_to_seconds(start_units),
-                duration=self.units_to_seconds(duration_units),
-                staff=getattr(raw_note, "staff", "auto"),
-            )
+            if hasattr(raw_note, "names"):
+                quantized_note = DetectedChord(
+                    names=list(raw_note.names),
+                    start_time=self.units_to_seconds(start_units),
+                    duration=self.units_to_seconds(duration_units),
+                    staff=getattr(raw_note, "staff", "auto"),
+                )
+            else:
+                quantized_note = DetectedNote(
+                    name=raw_note.name,
+                    start_time=self.units_to_seconds(start_units),
+                    duration=self.units_to_seconds(duration_units),
+                    staff=getattr(raw_note, "staff", "auto"),
+                )
+
             quantized_note.raw_start_time = raw_note.start_time
             quantized_note.raw_duration = raw_note.duration
             quantized_note.start_units = start_units
@@ -218,7 +227,7 @@ class RhythmQuantizer:
                 gap_units = start_units - previous_end_units
                 events.extend(self.split_duration("rest", gap_units))
 
-            if note.is_rest():
+            if self.is_rest(note):
                 events.extend(self.split_duration("rest", duration_units))
                 previous_end_units = max(
                     previous_end_units,
@@ -234,12 +243,13 @@ class RhythmQuantizer:
             while index < len(sorted_notes):
                 candidate = sorted_notes[index]
 
-                if candidate.is_rest():
+                if self.is_rest(candidate):
                     break
 
                 if (
                     self.onsets_match(group_onset, self.onset_time(candidate))
                     and candidate.duration_units == group[0].duration_units
+                    and self.same_staff_group(candidate, group[0])
                 ):
                     group.append(candidate)
                     index += 1
@@ -276,19 +286,44 @@ class RhythmQuantizer:
             else note.start_time
         )
 
+    def is_rest(self, note) -> bool:
+        return hasattr(note, "is_rest") and note.is_rest()
+
     def onsets_match(self, first_onset: float, second_onset: float) -> bool:
         return abs(second_onset - first_onset) <= self.onset_tolerance
+
+    def same_staff_group(self, first_note: DetectedNote, second_note: DetectedNote) -> bool:
+        return self.staff_group(first_note) == self.staff_group(second_note)
+
+    def staff_group(self, note: DetectedNote) -> str:
+        staff = getattr(note, "staff", "auto")
+
+        if staff in {"treble", "bass"}:
+            return staff
+
+        return self.auto_staff_group(note)
+
+    def auto_staff_group(self, note: DetectedNote) -> str:
+        name = getattr(note, "name", "")
+
+        if name and name[-1].isdigit():
+            return "treble" if int(name[-1]) >= 4 else "bass"
+
+        return "auto"
 
     def build_note_or_chord(self, group: list[DetectedNote]):
         if len(group) == 1:
             return group[0]
 
         duration_units = group[0].duration_units
+        group_staves = {getattr(note, "staff", "auto") for note in group}
+        staff = group_staves.pop() if len(group_staves) == 1 else "auto"
 
         chord = DetectedChord(
             names=[note.name for note in group],
             start_time=group[0].start_time,
             duration=group[0].duration,
+            staff=staff,
             start_units=group[0].start_units,
             duration_units=duration_units,
         )
